@@ -147,6 +147,7 @@ try{
     let entradas = await db.collection("entries").find({ email: session[0].email }).toArray()
     entradas = entradas[0].entries
     await db.collection("entries").updateOne({ email: session[0].email }, { $set: {entries: [...entradas, obj]} })
+    await db.collection('online').updateOne({ email: session[0].email }, { $set: {lastStatus: Date.now()} })
     return res.sendStatus(200)
   } catch (error) {
     console.error(error);
@@ -159,7 +160,7 @@ async function remover(){
     let removidos
     try {
         partners = await db.collection('online').find().toArray();
-        partners = partners.filter((i) => ((Date.now())/1000) - ((i.lastStatus)/1000) >300)
+        partners = partners.filter((i) => ((Date.now()) - ((i.lastStatus)) >300000))
         removidos = partners.map((i) => i.email)
     } catch (error) {
         console.error(error);
