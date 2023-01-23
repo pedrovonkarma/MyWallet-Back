@@ -5,6 +5,7 @@ import joi from 'joi'
 import bcrypt from 'bcrypt'
 import { v4 as uuid } from 'uuid';
 import dayjs from 'dayjs';
+import cors from 'cors'
 dotenv.config();
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
 let db;
@@ -12,7 +13,9 @@ mongoClient.connect(() => {
     db = mongoClient.db();
 });
 const app = express();
+app.use(cors())
 app.use(express.json());
+
 
 app.post('/signin', async (req, res) => {
     const mail = req.body.email;
@@ -97,15 +100,15 @@ app.get('/entries', async (req, res) => {
 
   if(!token) return res.sendStatus(401);
 
-  const session = await db.collection("online").find({ token });
-            
-  if (!session) {
+  const session = await db.collection("online").find({token: token}).toArray();
+           
+  if (session.length===0) {
       return res.status(401).send('deslogado');
   }
 
   try{
-    const entradas = await db.collection("entries").find({ email: session.email }).toArray()
-    return res.status(200).send(entradas)
+    const entradas = await db.collection("entries").find({ email: session[0].email }).toArray()
+    return res.status(200).send(entradas[0].entries)
   } catch (error) {
     console.error(error);
     res.sendStatus(500);
@@ -115,16 +118,14 @@ app.get('/entries', async (req, res) => {
 
 app.post('/entries', async (req, res) => {
     const { authorization } = req.headers;
-    console.log(authorization)
+    
   const token = authorization?.replace('Bearer ', '');
     
   if(!token){return res.sendStatus(401)}
-    console.log(token)
-    console.log(typeof token)
-    console.log(token==="ababoca")
+    
   const session = await db.collection("online").find({token: token}).toArray();
            
-  if (!session) {
+  if (session.length===0) {
       return res.status(401).send('deslogado');
   }
 
@@ -143,8 +144,9 @@ const obj = {
 }
 
 try{
-    const entradas = await db.collection("entries").find({ email: session.email }).toArray()
-    await db.collection("entries").updateOne({ email: session.email }, { $set: {entries: [...entradas, obj]} })
+    let entradas = await db.collection("entries").find({ email: session[0].email }).toArray()
+    entradas = entradas[0].entries
+    await db.collection("entries").updateOne({ email: session[0].email }, { $set: {entries: [...entradas, obj]} })
     return res.sendStatus(200)
   } catch (error) {
     console.error(error);
@@ -152,18 +154,31 @@ try{
 }
 })
 
-app.get('/login', async (req, res) => {
-    
-    
-        try {
-            const msgs = await db.collection('entries').find().toArray();
-            res.send(msgs);
-        } catch (error) {
-            console.error(error);
-            res.sendStatus(500);
+async function remover(){
+    let partners
+    let removidos
+    try {
+        partners = await db.collection('online').find().toArray();
+        partners = partners.filter((i) => ((Date.now())/1000) - ((i.lastStatus)/1000) >300)
+        removidos = partners.map((i) => i.email)
+    } catch (error) {
+        console.error(error);
+    }
+    if(partners.length===0){
+        return
+    }
+
+    try {
+
+        for (let index = 0; index < removidos.length; index++) {
+            await db.collection('online').deleteOne({email: removidos[index]})
+            
         }
-    
-    
-})
+        return
+    } catch (error) {
+        console.error(error);
+    }
+}
 
 app.listen(5000)
+setInterval(remover, 30000)
