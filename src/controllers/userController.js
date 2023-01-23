@@ -4,17 +4,7 @@ import db from '../database.js';
 
 
 export async function getEntries(req, res){
-    const { authorization } = req.headers;
-  const token = authorization?.replace('Bearer ', '');
-
-  if(!token) return res.sendStatus(401);
-
-  const session = await db.collection("online").find({token: token}).toArray();
-           
-  if (session.length===0) {
-      return res.status(401).send('deslogado');
-  }
-
+    const session = res.locals.session
   try{
     const entradas = await db.collection("entries").find({ email: session[0].email }).toArray()
     return res.status(200).send(entradas[0].entries)
@@ -25,17 +15,8 @@ export async function getEntries(req, res){
 }
 
 export async function postEntry(req, res){
-    const { authorization } = req.headers;
-    
-  const token = authorization?.replace('Bearer ', '');
-    
-  if(!token){return res.sendStatus(401)}
-    
-  const session = await db.collection("online").find({token: token}).toArray();
-           
-  if (session.length===0) {
-      return res.status(401).send('deslogado');
-  }
+  
+  const session = res.locals.session
 
   const userSchema = joi.object({
     valor: joi.number().required(),
